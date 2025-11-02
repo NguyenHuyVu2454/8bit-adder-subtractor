@@ -1,0 +1,109 @@
+//===========================================================
+// Top-level module: Add/Subtract Unit with Register Control
+//===========================================================
+module addersubtractor (
+    A, B, Clock, Reset, Sel, AddSub, Z, Overflow
+);
+    parameter n = 16;
+
+    input  [n-1:0] A, B;
+    input          Clock, Reset, Sel, AddSub;
+    output [n-1:0] Z;
+    output         Overflow;
+
+    reg            SelR, AddSubR, Overflow;
+    reg   [n-1:0]  Areg, Breg, Zreg;
+    wire  [n-1:0]  G, H, M;
+    wire           carryout, over_flow;
+
+    //=============================
+    // Combinational logic section
+    //=============================
+
+    // Invert B when performing subtraction
+    assign H = Breg & {n{AddSubR}};
+
+    // Multiplexer: choose between Areg or Z
+    mux2to1 multiplexer (
+        .V(Areg),
+        .W(Z),
+        .Sel(SelR),
+        .F(G)
+    );
+    defparam multiplexer.k = n;
+
+    // Adder module
+    adderk nbit_adder (
+        .carryin(AddSubR),
+        .X(G),
+        .Y(H),
+        .S(M),
+        .carryout(carryout)
+    );
+    defparam nbit_adder.k = n;
+
+    // Overflow detection
+    assign over_flow = carryout & G[n-1] & H[n-1] & M[n-1];
+    assign Z = Zreg;
+
+    //=============================
+    // Sequential logic section
+    //=============================
+    always @(posedge Reset or posedge Clock) begin
+        if (Reset) begin
+            Areg      <= 0;
+            Breg      <= 0;
+            Zreg      <= 0;
+            SelR      <= 0;
+            AddSubR   <= 0;
+            Overflow  <= 0;
+        end
+        else begin
+            Areg      <= A;
+            Breg      <= B;
+            Zreg      <= M;
+            SelR      <= Sel;
+            AddSubR   <= AddSub;
+            Overflow  <= over_flow;
+        end
+    end
+endmodule
+
+
+//===========================================================
+// k-bit 2-to-1 Multiplexer
+//===========================================================
+module mux2to1 (V, W, Sel, F);
+    parameter k = 8;
+    input  [k-1:0] V, W;
+    input          Sel;
+    output [k-1:0] F;
+
+    reg [k-1:0] F;
+
+    always @(*) begin
+        if (Sel == 0)
+            F = V;
+        else
+            F = W;
+    end
+endmodule
+
+
+//===========================================================
+// k-bit Adder
+//===========================================================
+module adderk (carryin, X, Y, S, carryout);
+    parameter k = 8;
+    input  [k-1:0] X, Y;
+    input          carryin;
+    output [k-1:0] S;
+    output         carryout;
+
+    reg [k-1:0] S;
+    reg         carryout;
+
+    always @(*) begin
+        {carryout, S} = X + Y + carryin;
+    end
+endmodule
